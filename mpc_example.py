@@ -51,7 +51,7 @@ for t in range(N):
     theta_t = _X[:, 1:] @ np.linalg.pinv(data)
 
 
-    eps_t = 10 / (t + 1)
+    eps_t = 10 * np.log(t + 2) / (t + 1)
 
     A_hs_t, b_hs_t = build_hypercube(theta_t.flatten(), 2 * eps_t)
     A_intersection_t, b_intersection_t = np.vstack((A_hs_prev, A_hs_t)), np.vstack((b_hs_prev, b_hs_t))
@@ -62,10 +62,14 @@ for t in range(N):
     half_space_intersection = HalfspaceIntersection(np.hstack((A_intersection_t, b_intersection_t)), interior_point_t)
     cvx_hull = ConvexHull(half_space_intersection.intersections)
 
-    print(f'[Iteration {t}] Center: {interior_point_t} - number of vertices {half_space_intersection.intersections.shape[0]} - Volume: {cvx_hull.volume}')
+    
     Vol[t] = cvx_hull.volume
 
     A_hs_prev, b_hs_prev = A_hs_t, b_hs_t
+
+    is_inside = np.all(A_hs_prev @ C + b_hs_prev <= 0)
+
+    print(f'[Iteration {t}] Center: {interior_point_t} - number of vertices {half_space_intersection.intersections.shape[0]} - Volume: {cvx_hull.volume} - Point inside: {is_inside}')
 
 plt.plot(Vol[1:])
 plt.grid()
