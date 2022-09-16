@@ -1,27 +1,28 @@
 
 import numpy as np
-import polytope
 import matplotlib.pyplot as plt
 from scipy.spatial import HalfspaceIntersection, ConvexHull
 from utils import build_hypercube, compute_stabilizing_K, feasible_point
 np.set_printoptions(formatter={'float': lambda x: "{0:0.3f}".format(x)})
 
 A = np.array([
-    [0.9, 0.2],
-    [-0.1, 0.6]
+    [0.6, 0.2],
+    [-0.1, 0.4]
 ])
 
 B = np.array([
-    [.1],
+    [1],
     [0.5]
 ])
 
 dim_x, dim_u = B.shape
 C = np.hstack((A, B)).flatten()
 
-radius = 1e-1
+radius = 3e-1
 std_u = 1e-1
 std_w = 1e-1
+delta = 1e-2
+const_eps = 100
 A_hs, b_hs = build_hypercube(C, radius)
 
 half_space_intersection = HalfspaceIntersection(np.hstack((A_hs, b_hs)), C, incremental=True)
@@ -32,62 +33,117 @@ vertices_half_space = half_space_intersection.intersections
 # Compute stabilizing K
 K = compute_stabilizing_K(vertices_half_space, dim_x, dim_u)
 
+if K is None:
+    raise Exception('K is not stabilizing')
 
-N = 100
+N = 200
+N_LS = 10
 X = np.zeros((dim_x, N+1))
 U = np.zeros((dim_u, N))
-Vol = np.zeros((N))
+volume = np.zeros((N+1))
+volume_theta_hypercube = np.zeros((N))
+error = np.zeros((N))
+epsilon = np.zeros((N))
+
 X[:,0] = np.random.normal(size=(dim_x))
 
 parameter_set_prev = np.hstack((A_hs, b_hs))
 prev_vertices = half_space_intersection.intersections
+volume[0] = ConvexHull(half_space_intersection.intersections).volume
 
 for t in range(N):
     U[:, t] = std_u * np.random.normal(size=(dim_u))
     X[:, t+1] = A @ X[:, t] +  B @ U[:, t] + std_w * np.random.normal(size=(dim_x))
 
-    # LS Estimate
-    if t > 10:
+    epsilon[t] = const_eps * (std_w ** 2) * (np.log(np.e/delta) + (dim_x+dim_u) * np.log(std_w * dim_x * dim_u + (t + 1))) / (t + 1)
+    volume[t+1] = volume[t]
+
+    if t > N_LS:
+        # LS Estimate
         _X = X[:, :t+2]
         _U = U[:, :t+1]
         data = np.vstack((_X[:, :-1], _U))
-        theta_t = _X[:, 1:] @ np.linalg.pinv(data)
+        theta_t = (_X[:, 1:] @ np.linalg.pinv(data)).flatten()
 
-
-        eps_t = 1 * np.log(t + 2) / (t + 1)
-
-        delta_t = np.hstack(build_hypercube(theta_t.flatten(), 2 * eps_t))
-        parameter_set_t = np.vstack((parameter_set_prev, delta_t))
-
-        _, interior_point_t = feasible_point(parameter_set_t[:, :-1], parameter_set_t[:, -1:])
-        
-
-        half_space_intersection = HalfspaceIntersection(parameter_set_t, interior_point_t)
-
+        error[t] = np.linalg.norm(theta_t - C)
+ 
+        delta_t = np.hstack(build_hypercube(theta_t, 2 * epsilon[t]))
         _, interior_point_delta_t = feasible_point(delta_t[:, :-1], delta_t[:, -1:])
         hypercube_delta = HalfspaceIntersection(delta_t, interior_point_delta_t)
+        volume_theta_hypercube[t] = ConvexHull(hypercube_delta.intersections).volume
 
-        #print(hypercube_delta.intersections)
 
-        if not np.all(np.isclose(prev_vertices - half_space_intersection.intersections ,0)):
-            # The delta_t is not bigger than the previous set
-            parameter_set_prev = parameter_set_t
+        parameter_set_t = np.vstack((parameter_set_prev, delta_t))
+        _, interior_point_t = feasible_point(parameter_set_t[:, :-1], parameter_set_t[:, -1:])
+        
+        half_space_intersection = HalfspaceIntersection(parameter_set_t, interior_point_t)
+        vertices = half_space_intersection.intersections
 
-        cvx_hull = ConvexHull(half_space_intersection.intersections)
+        cvx_hull_intersection= ConvexHull(half_space_intersection.intersections)
+        volume_t = cvx_hull_intersection.volume
 
-        Vol[t] = cvx_hull.volume
+        check_inclusion = False
+        for i in range(len(prev_vertices)):
+            if np.any(parameter_set_t[:, :-1] @ prev_vertices[i] + parameter_set_t[:, -1] >  1e-15):
+                check_inclusion = True
+                break
+
+        if volume_t < volume[t] and check_inclusion:
+            volume[t+1] = volume_t
+            #parameter_set_prev = cvx_hull_intersection.equations
+            # poly = polytope.qhull(vertices)
+        
+            # parameter_set_prev = np.hstack((poly.A, poly.b[:, None]))
+            #point = feasible_point(parameter_set_prev[:, :-1], parameter_set_prev[:, -1:])
+            #hs = HalfspaceIntersection(parameter_set_prev, point)
+        
+
+
+        # is_delta_included =  np.all(
+        #         (parameter_set_prev[:, :-1] @ vertices.T) + np.tile(parameter_set_prev[:, -1], vertices.shape[0]).reshape(vertices.shape[0], parameter_set_prev[:, -1].shape[0]).T <= 1e-9
+        # )
+
+
+        print(f"{t} - {volume_t} - {parameter_set_prev.shape}" )
+
+  
+        
+
+        # #print(hypercube_delta.intersections)
+
+        # if not np.all(np.isclose(prev_vertices - half_space_intersection.intersections ,0)):
+        #     # The delta_t is not bigger than the previous set
+        #     parameter_set_prev = parameter_set_t
+        #     print('NOT BIG!')
+
+        # cvx_hull = ConvexHull(half_space_intersection.intersections)
+
+        # Vol[t] = cvx_hull.volume
 
         
 
-        is_inside = np.all(parameter_set_prev[:, :-1] @ C + parameter_set_prev[:, -1] <= 0)
+        # is_inside = np.all(parameter_set_prev[:, :-1] @ C + parameter_set_prev[:, -1] <= 0)
 
-        print(f'[Iteration {t}] Center: {interior_point_t} - number of vertices {half_space_intersection.intersections.shape[0]} - Volume: {cvx_hull.volume} - Point inside: {is_inside}')
+#         print(f'[Iteration {t}] Error: {err[t]} -  Center: {interior_point_t} - number of vertices {half_space_intersection.intersections.shape[0]} - Volume: {cvx_hull.volume} - Point inside: {is_inside}')
+fig, ax = plt.subplots(1,2)
+ax[0].plot(epsilon[N_LS:], label=r'\epsilon_t')
+ax[0].plot(error[N_LS:], label=r'\|\theta-\theta_t\|')
+ax[0].grid()
+ax[0].legend()
+ax[0].set_yscale('log')
 
-plt.plot(Vol[1:])
-plt.grid()
-plt.legend()
-plt.xlabel('t')
-plt.ylabel('Volume')
-plt.title('Volume of parameter set')
-plt.yscale('log')
+ax[1].plot(volume[N_LS:], label='Volume intersection')
+ax[1].plot(volume_theta_hypercube[N_LS:], label='Volume hypercube around theta')
+ax[1].grid()
+ax[1].set_yscale('log')
+ax[1].legend()
+plt.title(f"C = {const_eps} - delta = {delta}")
 plt.show()
+# plt.plot(Vol[1:])
+# plt.grid()
+# plt.legend()
+# plt.xlabel('t')
+# plt.ylabel('Volume')
+# plt.title('Volume of parameter set')
+# plt.yscale('log')
+# plt.show()
