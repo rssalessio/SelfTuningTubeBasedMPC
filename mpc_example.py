@@ -1,6 +1,7 @@
 
 import numpy as np
-from scipy.spatial import HalfspaceIntersection
+import matplotlib.pyplot as plt
+from scipy.spatial import HalfspaceIntersection, ConvexHull
 from utils import build_hypercube, compute_stabilizing_K, feasible_point
 
 
@@ -34,6 +35,7 @@ K = compute_stabilizing_K(vertices_half_space, dim_x, dim_u)
 N = 100
 X = np.zeros((dim_x, N+1))
 U = np.zeros((dim_u, N))
+Vol = np.zeros((N))
 X[:,0] = np.random.normal(size=(dim_x))
 
 A_hs_prev, b_hs_prev = A_hs, b_hs
@@ -58,7 +60,18 @@ for t in range(N):
 
 
     half_space_intersection = HalfspaceIntersection(np.hstack((A_intersection_t, b_intersection_t)), interior_point_t)
+    cvx_hull = ConvexHull(half_space_intersection.intersections)
 
-    print(f'[Iteration {t}] Center: {interior_point_t} - number of vertices {half_space_intersection.intersections.shape[0]}')
+    print(f'[Iteration {t}] Center: {interior_point_t} - number of vertices {half_space_intersection.intersections.shape[0]} - Volume: {cvx_hull.volume}')
+    Vol[t] = cvx_hull.volume
 
     A_hs_prev, b_hs_prev = A_hs_t, b_hs_t
+
+plt.plot(Vol[1:])
+plt.grid()
+plt.legend()
+plt.xlabel('t')
+plt.ylabel('Volume')
+plt.title('Volume of parameter set')
+plt.yscale('log')
+plt.show()
