@@ -4,6 +4,9 @@ import matplotlib.pyplot as plt
 from scipy.spatial import HalfspaceIntersection, ConvexHull
 from utils import build_hypercube, compute_stabilizing_K, feasible_point
 np.set_printoptions(formatter={'float': lambda x: "{0:0.3f}".format(x)})
+from conservative_intersection import ConservativeIntersection
+from under_approximate_intersection import UnderApproximateIntersection
+from over_approximate_intersection import OverApproximateIntersection
 
 A = np.array([
     [0.6, 0.2],
@@ -40,7 +43,9 @@ N = 200
 N_LS = 10
 X = np.zeros((dim_x, N+1))
 U = np.zeros((dim_u, N))
-volume = np.zeros((N+1))
+volume_conservative = np.zeros((N+1))
+volume_underapproximate = np.zeros((N+1))
+volume_overapproximate = np.zeros((N+1))
 volume_theta_hypercube = np.zeros((N))
 error = np.zeros((N))
 epsilon = np.zeros((N))
@@ -49,14 +54,22 @@ X[:,0] = np.random.normal(size=(dim_x))
 
 parameter_set_prev = np.hstack((A_hs, b_hs))
 prev_vertices = half_space_intersection.intersections
-volume[0] = ConvexHull(half_space_intersection.intersections).volume
+volume_conservative[0] = ConvexHull(half_space_intersection.intersections).volume
+volume_underapproximate[0] = ConvexHull(half_space_intersection.intersections).volume
+volume_overapproximate[0] = ConvexHull(half_space_intersection.intersections).volume
+
+conservative_intersection = ConservativeIntersection(A_hs, b_hs)
+underapproximate_intersection = UnderApproximateIntersection(A_hs, b_hs)
+overapproximate_intersection = OverApproximateIntersection(A_hs, b_hs)
 
 for t in range(N):
     U[:, t] = std_u * np.random.normal(size=(dim_u))
     X[:, t+1] = A @ X[:, t] +  B @ U[:, t] + std_w * np.random.normal(size=(dim_x))
 
     epsilon[t] = const_eps * (std_w ** 2) * (np.log(np.e/delta) + (dim_x+dim_u) * np.log(std_w * dim_x * dim_u + (t + 1))) / (t + 1)
-    volume[t+1] = volume[t]
+    volume_underapproximate[t+1] = volume_underapproximate[t]
+    volume_conservative[t+1] = volume_conservative[t]
+    volume_overapproximate[t+1] = volume_overapproximate[t]
 
     if t > N_LS:
         # LS Estimate
@@ -68,28 +81,39 @@ for t in range(N):
         error[t] = np.linalg.norm(theta_t - C)
  
         delta_t = np.hstack(build_hypercube(theta_t, 2 * epsilon[t]))
+
+
+
         _, interior_point_delta_t = feasible_point(delta_t[:, :-1], delta_t[:, -1:])
         hypercube_delta = HalfspaceIntersection(delta_t, interior_point_delta_t)
         volume_theta_hypercube[t] = ConvexHull(hypercube_delta.intersections).volume
 
 
-        parameter_set_t = np.vstack((parameter_set_prev, delta_t))
-        _, interior_point_t = feasible_point(parameter_set_t[:, :-1], parameter_set_t[:, -1:])
+        conservative_intersection.intersect(delta_t[:,:-1], delta_t[:, -1:])
+        underapproximate_intersection.intersect(delta_t[:,:-1], delta_t[:, -1:])
+        overapproximate_intersection.intersect(delta_t[:,:-1], delta_t[:, -1:])
+        volume_conservative[t+1] = conservative_intersection.current_volume
+        volume_underapproximate[t+1] = underapproximate_intersection.current_volume
+        volume_overapproximate[t+1] = overapproximate_intersection.current_volume
+
+
+        # parameter_set_t = np.vstack((parameter_set_prev, delta_t))
+        # _, interior_point_t = feasible_point(parameter_set_t[:, :-1], parameter_set_t[:, -1:])
         
-        half_space_intersection = HalfspaceIntersection(parameter_set_t, interior_point_t)
-        vertices = half_space_intersection.intersections
+        # half_space_intersection = HalfspaceIntersection(parameter_set_t, interior_point_t)
+        # vertices = half_space_intersection.intersections
 
-        cvx_hull_intersection= ConvexHull(half_space_intersection.intersections)
-        volume_t = cvx_hull_intersection.volume
+        # cvx_hull_intersection= ConvexHull(half_space_intersection.intersections)
+        # volume_t = cvx_hull_intersection.volume
 
-        check_inclusion = False
-        for i in range(len(prev_vertices)):
-            if np.any(parameter_set_t[:, :-1] @ prev_vertices[i] + parameter_set_t[:, -1] >  1e-15):
-                check_inclusion = True
-                break
+        # check_inclusion = False
+        # for i in range(len(prev_vertices)):
+        #     if np.any(parameter_set_t[:, :-1] @ prev_vertices[i] + parameter_set_t[:, -1] >  1e-15):
+        #         check_inclusion = True
+        #         break
 
-        if volume_t < volume[t] and check_inclusion:
-            volume[t+1] = volume_t
+        # if volume_t < volume[t] and check_inclusion:
+        #     volume[t+1] = volume_t
             #parameter_set_prev = cvx_hull_intersection.equations
             # poly = polytope.qhull(vertices)
         
@@ -104,7 +128,7 @@ for t in range(N):
         # )
 
 
-        print(f"{t} - {volume_t} - {parameter_set_prev.shape}" )
+        print(f"{t} - {conservative_intersection.current_volume}- {underapproximate_intersection.current_volume}- {overapproximate_intersection.current_volume} - {conservative_intersection.current_H.shape} - {underapproximate_intersection.current_H.shape}" )
 
   
         
@@ -132,7 +156,9 @@ ax[0].grid()
 ax[0].legend()
 ax[0].set_yscale('log')
 
-ax[1].plot(volume[N_LS:], label='Volume intersection')
+ax[1].plot(volume_conservative[N_LS:], label='Volume  conservative intersection')
+ax[1].plot(volume_underapproximate[N_LS:], label='Volume  underapproximate intersection')
+ax[1].plot(volume_overapproximate[N_LS:], label='Volume  overapproximate intersection')
 ax[1].plot(volume_theta_hypercube[N_LS:], label='Volume hypercube around theta')
 ax[1].grid()
 ax[1].set_yscale('log')
