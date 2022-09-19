@@ -3,6 +3,37 @@ import cvxpy as cp
 from typing import Tuple, Union
 
 
+def build_aligned_hypercube(A: np.ndarray, center: np.ndarray, half_side_length: float) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Builds an aligned hypercube around a center point. It is aligned with respect to another
+    hyperectangle defined by A.
+    Returns [A,b], the halfspaces definining the hypercube Ax+b<=0
+
+    :param A: halfspaces definining an hyperrectangle
+    :param center: center of the hypercube
+    :param half_side_length: half the length of one side
+    :return A: contains (2*n rows, n cols), where n is the dimensionality of the center
+    :return b: b contains 2n rows
+    """
+    assert isinstance(center, np.ndarray) or isinstance(center, list), 'Center is not an array'
+    if isinstance(center, list):
+        center = np.array(center)
+    if len(center.shape) == 1:
+        center = center[:, None]    
+
+    b = cp.Variable(A.shape[0])
+    
+    
+    constraints = [A @ center + half_side_length * np.linalg.norm(A[i,:], ord=2) <= -b[:, None] for i in range(A.shape[0])]
+
+    problem = cp.Problem(cp.Minimize(cp.norm(b, p=2)), constraints)
+    res = problem.solve(solver=cp.MOSEK)
+
+    if res is None or np.isclose(0, res):
+        raise Exception('Could not find an aligned hypercube')
+
+    return A, b.value[:, None]
+
 def build_hypercube(center: np.ndarray, half_side_length: float) -> Tuple[np.ndarray, np.ndarray]:
     """
     Builds an hypercube around a center point. Returns [A,b], the halfspaces

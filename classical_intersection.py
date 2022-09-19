@@ -28,7 +28,7 @@ class ClassicalIntersection(object):
 
     def intersect(self, A: np.ndarray, b: np.ndarray):
         new_H = np.hstack((A, b))
-        intersection_H = np.vstack((self.initial_H, new_H))
+        intersection_H = np.vstack((self.current_H, new_H))
 
         radius_inner_circle, interior_point = feasible_point(intersection_H[:, :-1], intersection_H[:, -1:])
         
