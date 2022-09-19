@@ -2,7 +2,7 @@ import numpy as np
 from scipy.spatial import HalfspaceIntersection, ConvexHull
 from utils import build_hypercube, compute_stabilizing_K, feasible_point
 
-class ConservativeIntersection(object):
+class ClassicalIntersection(object):
     initial_H: np.ndarray
     current_H: np.ndarray
     current_volume: float
@@ -36,18 +36,11 @@ class ConservativeIntersection(object):
         vertices_intersections = half_space_intersection.intersections
 
         hull = ConvexHull(vertices_intersections)
+        self.current_H = hull.equations
 
-        volume = hull.volume
-        check_inclusion = True
-        for i in range(len(vertices_intersections)):
-            if not np.all(self.current_H[:, :-1] @ vertices_intersections[i] + self.current_H[:, -1] <= 1e-15):
-                check_inclusion = False
-                break
 
-        if volume < self.current_volume and check_inclusion:
-            self.current_H = hull.equations
-            self.current_interior_point = interior_point
-            self.current_volume = volume
-            self.current_vertices = vertices_intersections
-            self.current_radius_inner_circle = radius_inner_circle
-            self.current_interior_point = interior_point
+        self.current_interior_point = interior_point
+        self.current_volume = hull.volume
+        self.current_vertices = vertices_intersections
+        self.current_radius_inner_circle = radius_inner_circle
+        self.current_interior_point = interior_point
