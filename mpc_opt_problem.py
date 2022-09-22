@@ -62,42 +62,6 @@ def compute_H_Hc(vertices: np.ndarray, T: np.ndarray, K: np.ndarray, F: np.ndarr
     problem = cp.Problem(cp.Minimize(objective), constraints)
     return problem
 
-
-def compute_H_Hc_original(vertices: np.ndarray, T: np.ndarray, K: np.ndarray, F: np.ndarray, G: np.ndarray) -> cp.Problem:
-    """
-    Note that the number of vertices is always fixed if we use hypercubes. This makes the problem more computationally efficient
-    so the number of vertices is not time varying
-    """
-    num_vertices = vertices.shape[0]
-    dalpha, dx = T.shape
-    dc = F.shape[0]
-    dim_u, dim_x = K.shape
-
-    vertices = vertices.reshape(num_vertices, dim_x, dim_x+dim_u)
-
-    matrices_H = [[cp.Variable((dalpha), nonneg=True) for i in range(dalpha)] for j in range(num_vertices)]
-    Hc = [cp.Variable((dalpha), nonneg=True) for i in range(dc)]
-    VParams = [cp.Parameter((vertices.shape[1:]), name=f'vertex_{j}') for j in range(num_vertices)]
-
-
-    objective = 0
-    constraints = []
-
-    for i in range(dc):
-        objective += cp.sum(Hc[i])
-        constraints.append(Hc[i] @ T == (F +  G @ K)[i])
-
-    # Constraints H
-    for j in range(num_vertices):
-        Av, Bv = VParams[j][:, :dim_x], VParams[j][:, dim_x:]
-        for i in range(dalpha):
-            objective += cp.sum(matrices_H[j][i])
-            constraints.append(matrices_H[j][i] @ T == T[i] @ (Av + Bv @ K))
-            
-
-    problem = cp.Problem(cp.Minimize(objective), constraints)
-    return problem
-
 def set_vertices_value(problem: cp.Problem, vertices: np.ndarray, dim_x: int, dim_u: int) -> cp.Problem:
     vertices = vertices.reshape(vertices.shape[0], dim_x, dim_x+dim_u)
     for j in range(vertices.shape[0]):
@@ -108,12 +72,6 @@ T = np.eye(dim_x)
 F = np.eye(dim_x)
 G = np.zeros((dim_x, dim_u))
 problem = compute_H_Hc(vertices_parameter_set, T, K, F, G)
-
-problem = set_vertices_value(problem, vertices_parameter_set, dim_x, dim_u)
-problem.solve(verbose=True, solver=cp.MOSEK, warm_start=True)
-
-
-problem = compute_H_Hc_original(vertices_parameter_set, T, K, F, G)
 
 problem = set_vertices_value(problem, vertices_parameter_set, dim_x, dim_u)
 problem.solve(verbose=True, solver=cp.MOSEK, warm_start=True)
