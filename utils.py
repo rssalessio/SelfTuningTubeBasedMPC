@@ -108,12 +108,13 @@ def compute_stabilizing_K(vertices: np.ndarray, dim_x: int, dim_u: int) -> Union
     return Z.value @ np.linalg.inv(X.value)
     
 
-def compute_spectral_radius(vertices: np.ndarray, dim_x: int, dim_u: int, K: np.ndarray) -> Tuple[float, float]:
+def compute_joint_spectral_radius(vertices: np.ndarray, dim_x: int, dim_u: int, K: np.ndarray) -> Tuple[float, float]:
     """
-    Computes the spectral radius of a closed loop system over a polytopic uncertain set for the model
+    Computes the joint spectral radius of a closed loop system over a polytopic uncertain set for the model
     parameters
 
     See also eq. (5.72), Chapter 5 in Model Predictive Control, Kouvaritakis et al.
+
     :param vertices: a matrix where each row is a vertex of the polytope
     :param dim_x: dimensionality of the state
     :param dim_u: dimensionality of the control signal
@@ -133,4 +134,64 @@ def compute_spectral_radius(vertices: np.ndarray, dim_x: int, dim_u: int, K: np.
     return rho, feasible_lambda
 
 
+def compute_contractive_polytope(n: int, lmbd: float, F: np.ndarray, G: np.ndarray, K: np.ndarray, vertices: np.ndarray) -> np.ndarray:
+    """
+    Compute a lmbd-contractive polytope
 
+    :param n: order
+    :param lmbd: lambda value
+    :param F: F matrix
+    :param G: G matrix
+    :param K: feedback gain
+    :param vertices: vertices of the uncertain polytope
+    :return: T matrix
+    """
+    dim_u, dim_x = K.shape
+    num_vertices = vertices.shape[0]
+    vertices = vertices.reshape(num_vertices, dim_x, dim_x+dim_u)
+
+    T = [F + G @ K]
+    # for ji in range(num_vertices):
+    #     A, B = vertices[ji, :, :dim_x], vertices[ji, :, dim_x:]
+    #     phi = A + B @ K
+    #     T.extend([T[0] @ phi / (lmbd ** (i + 1)) for i in range(n)])
+
+    # import pdb
+    # pdb.set_trace()
+
+    return F+G@K#np.vstack(T)
+
+def compute_H_Hc(vertices: np.ndarray, T: np.ndarray, K: np.ndarray, F: np.ndarray, G: np.ndarray) -> cp.Problem:
+    """
+    Note that the number of vertices is always fixed if we use hypercubes. This makes the problem more computationally efficient
+    so the number of vertices is not time varying
+    """
+    num_vertices = vertices.shape[0]
+    dalpha, dx = T.shape
+    dc = F.shape[0]
+    dim_u, dim_x = K.shape
+
+    vertices = vertices.reshape(num_vertices, dim_x, dim_x+dim_u)
+
+    matrices_H = [cp.Variable((dalpha, dalpha), nonneg=True) for j in range(num_vertices)]
+    Hc = cp.Variable((dc, dalpha), nonneg=True)
+    VParams = [cp.Parameter((vertices.shape[1:]), name=f'vertex_{j}') for j in range(num_vertices)]
+
+
+    objective = cp.sum(Hc)
+    constraints = [Hc @ T == F +  G @ K]
+
+    # Constraints H
+    for j in range(num_vertices):
+        Av, Bv = VParams[j][:, :dim_x], VParams[j][:, dim_x:]
+        constraints.append(matrices_H[j] @ T == T @ (Av + Bv @ K))
+        objective += cp.sum(matrices_H[j])
+    
+    problem = cp.Problem(cp.Minimize(objective), constraints)
+    return problem
+
+def set_vertices_value(problem: cp.Problem, vertices: np.ndarray, dim_x: int, dim_u: int) -> cp.Problem:
+    vertices = vertices.reshape(vertices.shape[0], dim_x, dim_x+dim_u)
+    for j in range(vertices.shape[0]):
+        problem.param_dict[f'vertex_{j}'].value = vertices[j]
+    return problem
