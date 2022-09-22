@@ -24,9 +24,16 @@ class OverApproximateIntersection(object):
         self.current_vertices = self.current_intersection.intersections
 
         self.current_volume = ConvexHull(self.current_vertices).volume
+
+    def check_inclusion(self, A: np.ndarray, b: np.ndarray) -> bool:
+        checks = [np.any(A @ self.current_vertices[i] + b > 1e-15) for i in range(self.current_vertices.shape[0])]
+        return not np.any(checks)
         
 
     def intersect(self, A: np.ndarray, b: np.ndarray):
+        if self.check_inclusion(A, b):
+            return
+        
         new_H = np.hstack((A, b))
         intersection_H = np.vstack((self.current_H, new_H))
 
