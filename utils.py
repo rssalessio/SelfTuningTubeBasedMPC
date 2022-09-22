@@ -1,6 +1,6 @@
 import numpy as np
 import cvxpy as cp
-from typing import Tuple, Union
+from typing import Tuple, Union, Optional
 
 
 def build_aligned_hypercube(A: np.ndarray, center: np.ndarray, half_side_length: float) -> Tuple[np.ndarray, np.ndarray]:
@@ -107,5 +107,30 @@ def compute_stabilizing_K(vertices: np.ndarray, dim_x: int, dim_u: int) -> Union
 
     return Z.value @ np.linalg.inv(X.value)
     
+
+def compute_spectral_radius(vertices: np.ndarray, dim_x: int, dim_u: int, K: np.ndarray) -> Tuple[float, float]:
+    """
+    Computes the spectral radius of a closed loop system over a polytopic uncertain set for the model
+    parameters
+
+    See also eq. (5.72), Chapter 5 in Model Predictive Control, Kouvaritakis et al.
+    :param vertices: a matrix where each row is a vertex of the polytope
+    :param dim_x: dimensionality of the state
+    :param dim_u: dimensionality of the control signal
+    :param K: feedback gain (a dim_u x dim_x matrix)
+    :return rho: spectral radius of the system
+    :return feasible_lambda: a feasible value of lambda to definea lambda-contractive set
+    """
+    values = np.zeros(vertices.shape[0])
+    vertices = vertices.reshape(vertices.shape[0], dim_x, dim_x+dim_u)
+    for i in range(vertices.shape[0]):
+        A, B = vertices[i, :, :dim_x], vertices[i, :, dim_x:]
+        values[i] = np.abs(np.linalg.eigvals(A +  B @ K)).max()
+    
+    rho = np.max(values)
+    assert rho < 1, "Spectral radius is not lower than 1"
+    feasible_lambda = (1 + rho) /2
+    return rho, feasible_lambda
+
 
 

@@ -1,7 +1,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from utils import compute_stabilizing_K
+from utils import compute_stabilizing_K, compute_spectral_radius
 import cvxpy as cp
 from hyper_rectangle import HyperRectangle
 np.set_printoptions(formatter={'float': lambda x: "{0:0.3f}".format(x)})
@@ -67,6 +67,8 @@ def compute_T(F: np.ndarray, G: np.ndarray, K: np.ndarray, vertices: np.ndarray)
 
     return H.value
 
+
+print(compute_spectral_radius(vertices_parameter_set, dim_x, dim_u, K))
 F = 1e-1*np.eye(dim_x)
 G = 1e-1*np.ones((dim_x, dim_u))
 print(compute_T(F, G, K, vertices_parameter_set))
