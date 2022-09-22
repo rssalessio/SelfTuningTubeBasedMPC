@@ -133,8 +133,14 @@ Hc = compute_Hc(T, K, F, G)
 
 problem_H = get_H_problem(vertices_parameter_set, T, K, F, G)
 
-print(problem_H(vertices_parameter_set))
-print(problem_H(vertices_parameter_set))
+import time
+start = time.time()
+problem_H(vertices_parameter_set)
+print(time.time() - start)
+start = time.time()
+problem_H(vertices_parameter_set)
+print(time.time() - start)
+
 # problem = compute_H_Hc(vertices_parameter_set, T, K, F, G)
 # problem = set_vertices_value(problem, vertices_parameter_set, dim_x, dim_u)
 # problem.solve(verbose=True, solver=cp.MOSEK, warm_start=False)

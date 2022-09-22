@@ -151,15 +151,13 @@ def compute_contractive_polytope(n: int, lmbd: float, F: np.ndarray, G: np.ndarr
     vertices = vertices.reshape(num_vertices, dim_x, dim_x+dim_u)
 
     T = [F + G @ K]
-    # for ji in range(num_vertices):
-    #     A, B = vertices[ji, :, :dim_x], vertices[ji, :, dim_x:]
-    #     phi = A + B @ K
-    #     T.extend([T[0] @ phi / (lmbd ** (i + 1)) for i in range(n)])
+    for ji in range(num_vertices):
+        A, B = vertices[ji, :, :dim_x], vertices[ji, :, dim_x:]
+        phi = A + B @ K
+        T.extend([T[0] @ phi / (lmbd ** (i + 1)) for i in range(n)])
 
-    # import pdb
-    # pdb.set_trace()
 
-    return F+G@K#np.vstack(T)
+    return np.vstack(T)
 
 def compute_H_Hc(vertices: np.ndarray, T: np.ndarray, K: np.ndarray, F: np.ndarray, G: np.ndarray) -> cp.Problem:
     """
