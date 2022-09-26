@@ -108,7 +108,7 @@ for t in range(TOTAL_HORIZON):
     
     P_t = solve_lyapunov(A_t, B, K, np.eye(dim_x), np.eye(dim_u))
 
-    v, alpha, res, time_elapsed = solve_mpc_problem(A_t, B, P_t, x[t], wbar, H)
+    v, alpha, est_x, res, time_elapsed = solve_mpc_problem(A_t, B, P_t, x[t], wbar, H)
     if v is None:
         raise Exception('Problem unfeasible')
 
@@ -124,7 +124,7 @@ for t in range(TOTAL_HORIZON):
     # Compute tube
     alpha_1 = alpha[1]
 
-    xfeas = x[t+1]#feasible_point(T, -alpha_1[:, None]-1e-6)[1]
+    xfeas = est_x[1]
 
     hs_int = HalfspaceIntersection(np.hstack((T, -alpha_1[:, None] -1e-6)), xfeas)
     hs_int_vertices = hs_int.intersections

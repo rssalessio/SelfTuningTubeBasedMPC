@@ -295,7 +295,7 @@ def MPC_problem(
 
         elapsed_time = time.time() - start
         
-        return v.value, alpha.value, res, elapsed_time
+        return v.value, alpha.value, x.value, res, elapsed_time
 
     return solve_problem
 
