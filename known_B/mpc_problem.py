@@ -3,9 +3,14 @@ from __future__ import annotations
 import numpy as np
 import matplotlib.pyplot as plt
 from utils import compute_stabilizing_K, compute_joint_spectral_radius, compute_contractive_polytope, \
-    build_hypercube, compute_Hc, get_H_problem, MPC_problem, compute_wbar, solve_lyapunov
+    build_hypercube, compute_Hc, get_H_problem, MPC_problem, compute_wbar, solve_lyapunov, feasible_point
 from hyper_rectangle import HyperRectangle
 import plot_constants
+from scipy.spatial import ConvexHull
+from scipy.spatial import HalfspaceIntersection
+from matplotlib.patches import Polygon
+from matplotlib.collections import PatchCollection
+
 np.set_printoptions(formatter={'float': lambda x: "{0:0.3f}".format(x)})
 
 ### CONSTANTS ###
@@ -23,13 +28,13 @@ RADIUS_INITIAL_SET = 7e-2
 NOISE_CENTER_INITIAL_SET = 1e-2
 dim_x, dim_u = B.shape
 
-STD_W = 2e-2
-MPC_HORIZON = 10
-TOTAL_HORIZON = 300
+STD_W = 1e-2
+MPC_HORIZON = 6
+TOTAL_HORIZON = 6
 
 
 CONST_C = 40
-DELTA = 1e-3
+DELTA = 1e-2
 N_LS = 2
 
 INITIAL_X0 = np.array([6,3])
@@ -48,7 +53,7 @@ ORDER_CONTRACTIVE_POLYTOPE = 1
 
 ### Definition of Theta_0 ###
 C = A.flatten()
-noisy_center_initial_set = C + NOISE_CENTER_INITIAL_SET * np.random.uniform(low=-1, high=1, size=((dim_x*2)))
+noisy_center_initial_set = np.array([0.57, 0.17, -0.12, 0.42])
 parameter_set = HyperRectangle.build_hypercube(noisy_center_initial_set, RADIUS_INITIAL_SET)
 
 assert parameter_set.contains(A.flatten()), 'True matrix not contained in the parameter set'
@@ -61,14 +66,16 @@ K = compute_stabilizing_K(B, vertices_parameter_set, dim_x, dim_u)
 if K is None:
     raise Exception('K is not stabilizing')
 
+print(f'Stabilizing K: {K}')
 
 ### Compute T ###
 rho, lmbd = compute_joint_spectral_radius(B, vertices_parameter_set, dim_x, dim_u, K)
 T = compute_contractive_polytope(ORDER_CONTRACTIVE_POLYTOPE, lmbd, B, F, G, K, vertices_parameter_set)
 print(f'Joint spectral radius: {rho} - lambda: {lmbd}')
 
+lmbd = 0.999
 ### Compute cal{W}
-W = np.hstack(build_hypercube(np.zeros(dim_x), 3 *  STD_W))
+W = np.hstack(build_hypercube(np.zeros(dim_x), 3 *  (1+ np.linalg.norm(B)) * STD_W))
 
 
 ### Compute matrices Hc, H and define MPC problem
@@ -93,6 +100,8 @@ volume = np.zeros(TOTAL_HORIZON)
 x[0] = INITIAL_X0
 A_t = parameter_set.center.reshape((dim_x, dim_x))
 
+polygons = []
+
 for t in range(TOTAL_HORIZON):
     volume[t] = parameter_set.volume
     print(f'[({t})] x_t: {x[t]} - A_t {A_t} - Contains A: {parameter_set.contains(A.flatten())} - Volume: {volume[t]} - {np.linalg.norm(A_t - A, ord="fro")}')
@@ -104,9 +113,30 @@ for t in range(TOTAL_HORIZON):
         raise Exception('Problem unfeasible')
 
 
+    
+    
+
+
     u[t] = K@x[t] + v[0] + STD_W * np.sqrt(dim_x) * np.random.standard_normal()
     x[t+1] = A  @ x[t] + B @ u[t] + STD_W * np.random.standard_normal(dim_x)
 
+
+    # Compute tube
+    alpha_1 = alpha[1]
+
+    xfeas = x[t+1]#feasible_point(T, -alpha_1[:, None]-1e-6)[1]
+
+    hs_int = HalfspaceIntersection(np.hstack((T, -alpha_1[:, None] -1e-6)), xfeas)
+    hs_int_vertices = hs_int.intersections
+
+    keys = np.arctan2(hs_int_vertices[:, 1] - xfeas[1], hs_int_vertices[:,0] - xfeas[0])
+    hs_int_vertices = hs_int_vertices[np.argsort(keys)]
+    hs_int_vertices = np.vstack((hs_int_vertices, hs_int_vertices[0]))
+
+    polygons.append(Polygon(hs_int_vertices))
+
+
+    # LS
     epsilon[t] = CONST_C * (STD_W ** 2) * (np.log(np.e / DELTA) + (dim_x+dim_u) * np.log(STD_W * dim_x * dim_u + (t + 1))) / (t + 1) ** 0.6
 
 
@@ -124,30 +154,27 @@ for t in range(TOTAL_HORIZON):
         H, _ = problem_H(vertices_parameter_set)
 
 
-plt.plot(volume, label=r'Volume of $\Theta_t$')
 
-plt.xlabel('Time $t$')
-plt.ylabel('Vol($\Theta_t$)')
-plt.grid()
 
-# plt.annotate(f'Least squares estimate',xy=(N_LS + 1, volume[0]+0.05),xytext=(N_LS + 1, volume[0]+0.1),
-#                 arrowprops=dict(arrowstyle='-|>', fc="k", ec="k", lw=1.),
-#                 bbox=dict(pad=0, facecolor="none", edgecolor="none"), fontsize=20)
-
-plt.yscale('log')
-#plt.savefig('volume.pdf',bbox_inches='tight')
-plt.show()
-
-d = np.linspace(-3,10,1000)
+d = np.linspace(-3,10,5000)
 xd,yd = np.meshgrid(d,d)
-plt.imshow( ((yd<=X2_MIN) | (xd <= X1_MIN)).astype(int) , 
+fig, ax = plt.subplots()
+ax.imshow( ((yd<X2_MIN) | (xd < X1_MIN)) , 
                 extent=(xd.min(),xd.max(),yd.min(),yd.max()),origin="lower", cmap="Greys", alpha = 0.4)
-plt.plot(x[:,0], x[:, 1],  linestyle='dotted', marker='x', color='black', linewidth=0.7,label='CE-MPC')
-plt.xlabel('$x_1$', horizontalalignment='right', x=.95)
-plt.ylabel('$x_2$', horizontalalignment='right', y=.95)
-plt.legend(fancybox=True, facecolor="whitesmoke")
-plt.grid()
+ax.plot(x[:,0], x[:, 1],  linestyle='dotted', marker='x', color='black', linewidth=0.7,label='CE-MPC')
 
-plt.xlim(-0.9, 6.5)
-plt.ylim(-1.5, 3.5)
+for polygon in polygons:
+    collection = PatchCollection([polygon],  facecolor='lightsalmon', edgecolor='black', lw=1, alpha=0.5)
+    
+    ax.add_collection(collection)
+
+
+ax.set_xlabel('$x_1$', horizontalalignment='right', x=.95)
+ax.set_ylabel('$x_2$', horizontalalignment='right', y=.95)
+ax.legend(fancybox=True, facecolor="whitesmoke")
+ax.grid()
+
+ax.set_xlim(-0.35, 6.2)
+ax.set_ylim(-1.3, 3.2)
+
 plt.savefig('control.pdf',bbox_inches='tight')
