@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from utils import compute_stabilizing_K, compute_joint_spectral_radius, compute_contractive_polytope, \
     build_hypercube, compute_Hc, get_H_problem, MPC_problem, compute_wbar, solve_lyapunov
 from hyper_rectangle import HyperRectangle
+import plot_constants
 np.set_printoptions(formatter={'float': lambda x: "{0:0.3f}".format(x)})
 
 ### CONSTANTS ###
@@ -22,9 +23,9 @@ RADIUS_INITIAL_SET = 7e-2
 NOISE_CENTER_INITIAL_SET = 1e-2
 dim_x, dim_u = B.shape
 
-STD_W = 1e-2
+STD_W = 2e-2
 MPC_HORIZON = 10
-TOTAL_HORIZON = 500
+TOTAL_HORIZON = 300
 
 
 CONST_C = 40
@@ -35,10 +36,13 @@ INITIAL_X0 = np.array([6,3])
 
 
 ## Constraints ##
-# -1.1 <= x_2
-# u<= 1/2
-F = np.array([ [0, -1/1.1], [0, 0]]) #[-1/(0.5), 0],
-G = 2*np.array([[0], [1]])
+# X2_MIN <= x_2, X1_MIN <= x1
+# u<= U_MAX
+X2_MIN = -1.1
+X1_MIN = -0.15
+U_MAX = 1/2
+F = np.array([ [0, 1/X2_MIN], [1/X1_MIN, 0], [0, 0]])
+G = np.array([[0], [0], [1/U_MAX]])
 ORDER_CONTRACTIVE_POLYTOPE = 1
 
 
@@ -119,11 +123,31 @@ for t in range(TOTAL_HORIZON):
         vertices_parameter_set = parameter_set.vertices
         H, _ = problem_H(vertices_parameter_set)
 
-plt.plot(volume)
-plt.yscale('log')
+
+plt.plot(volume, label=r'Volume of $\Theta_t$')
+
+plt.xlabel('Time $t$')
+plt.ylabel('Vol($\Theta_t$)')
 plt.grid()
+
+# plt.annotate(f'Least squares estimate',xy=(N_LS + 1, volume[0]+0.05),xytext=(N_LS + 1, volume[0]+0.1),
+#                 arrowprops=dict(arrowstyle='-|>', fc="k", ec="k", lw=1.),
+#                 bbox=dict(pad=0, facecolor="none", edgecolor="none"), fontsize=20)
+
+plt.yscale('log')
+#plt.savefig('volume.pdf',bbox_inches='tight')
 plt.show()
 
-plt.plot(x[:,0], x[:, 1])
+d = np.linspace(-3,10,1000)
+xd,yd = np.meshgrid(d,d)
+plt.imshow( ((yd<=X2_MIN) | (xd <= X1_MIN)).astype(int) , 
+                extent=(xd.min(),xd.max(),yd.min(),yd.max()),origin="lower", cmap="Greys", alpha = 0.4)
+plt.plot(x[:,0], x[:, 1],  linestyle='dotted', marker='x', color='black', linewidth=0.7,label='CE-MPC')
+plt.xlabel('$x_1$', horizontalalignment='right', x=.95)
+plt.ylabel('$x_2$', horizontalalignment='right', y=.95)
+plt.legend(fancybox=True, facecolor="whitesmoke")
 plt.grid()
-plt.show()
+
+plt.xlim(-0.9, 6.5)
+plt.ylim(-1.5, 3.5)
+plt.savefig('control.pdf',bbox_inches='tight')
