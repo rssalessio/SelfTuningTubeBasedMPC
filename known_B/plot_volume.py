@@ -23,7 +23,7 @@ t = [2, 6, 16, 51, 101]
 
 for idx_delta, delta in enumerate(DELTAS):
     for step in t:
-        print(f'[Step {step-1} - Delta: {delta}] Volume shrinking {1-mu[idx_delta][step]}')
+        print(f'[Step {step-1} - Delta: {delta}] Volume w.r.t. Theta0 {100*mu[idx_delta][step]}')
 
 
 plt.figure(figsize=(8,5))

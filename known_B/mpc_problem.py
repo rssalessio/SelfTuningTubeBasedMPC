@@ -92,12 +92,14 @@ wbar = compute_wbar(W, T)
 
 ### Solve MPC
 x = np.zeros((TOTAL_HORIZON+1, dim_x))
+x_noconstraints = np.zeros((TOTAL_HORIZON+1, dim_x))
 u = np.zeros((TOTAL_HORIZON, dim_u))
 epsilon = np.zeros(TOTAL_HORIZON)
 volume = np.zeros(TOTAL_HORIZON)
 
 
 x[0] = INITIAL_X0
+x_noconstraints[0] = x[0]
 A_t = parameter_set.center.reshape((dim_x, dim_x))
 
 polygons = []
@@ -113,12 +115,10 @@ for t in range(TOTAL_HORIZON):
         raise Exception('Problem unfeasible')
 
 
-    
-    
-
-
     u[t] = K@x[t] + v[0] + STD_W * np.sqrt(dim_x) * np.random.standard_normal()
-    x[t+1] = A  @ x[t] + B @ u[t] + STD_W * np.random.standard_normal(dim_x)
+    w_t = STD_W * np.random.standard_normal(dim_x)
+    x[t+1] = A  @ x[t] + B @ u[t] + w_t
+    x_noconstraints[t+1] =  A @ x[t] + B @ (u[t] - v[0]) + w_t
 
 
     # Compute tube
@@ -161,6 +161,7 @@ xd,yd = np.meshgrid(d,d)
 fig, ax = plt.subplots()
 ax.imshow( ((yd<X2_MIN) | (xd < X1_MIN)) , 
                 extent=(xd.min(),xd.max(),yd.min(),yd.max()),origin="lower", cmap="Greys", alpha = 0.4)
+#ax.plot(x_noconstraints[:,0], x_noconstraints[:, 1], linestyle='dashed', marker='o', color='red', linewidth=0.7,label='CE-MPC')
 ax.plot(x[:,0], x[:, 1],  linestyle='dotted', marker='x', color='black', linewidth=0.7,label='CE-MPC')
 
 for polygon in polygons:
