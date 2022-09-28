@@ -1,7 +1,8 @@
 # Self-Tuning Tube Based MPC
 
-Authors: Damianos Tranos, Alessio Russo, Alexandre Proutiere
-Code author: Alessio Russo
+**Authors**: Damianos Tranos, Alessio Russo, Alexandre Proutiere
+
+**Code author**: Alessio Russo (alessior@kth.se)
 
 ## Usage
 
