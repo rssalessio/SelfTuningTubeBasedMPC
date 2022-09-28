@@ -253,17 +253,24 @@ def MPC_problem(
     matrices_H = [cp.Parameter((T.shape[0], T.shape[0]), name=f'H_{i}') for i in range(num_vertices)]
 
     constraints = [
+        # Initial constarints
         x[0] == x0,
+        T @ x0 <= alpha[0],
+        # System constraints
         x[1:].T == (A + B @ K) @ x[:-1].T + B @ v.T,
+        # First tube constraint
         Hc @ alpha[:-1].T + G @ v.T <= 1,
-        Hc @ alpha[-1] <= 1,
-        T @ x0 <= alpha[0]
+        # First terminal constraint
+        Hc @ alpha[-1] <= 1
     ]
+
     for i in range(num_vertices):
+        # Second terminal constraint
         constraints.append(
             matrices_H[i] @ alpha[-1] + wbar <= alpha[-1],
         )
         for k in range(horizon):
+            # Second tube constraint
             constraints.append(matrices_H[i] @ alpha[k] + T @ B @ v[k] + wbar <= alpha[k+1])
 
     loss = cp.sum_squares(P_sqrt @ x[-1])

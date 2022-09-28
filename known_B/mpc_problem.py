@@ -118,7 +118,7 @@ for t in range(TOTAL_HORIZON):
     u[t] = K@x[t] + v[0] + STD_W * np.sqrt(dim_x) * np.random.standard_normal()
     w_t = STD_W * np.random.standard_normal(dim_x)
     x[t+1] = A  @ x[t] + B @ u[t] + w_t
-    x_noconstraints[t+1] =  A @ x[t] + B @ (u[t] - v[0]) + w_t
+    x_noconstraints[t+1] =  (A + B @ K) @ x[t] + w_t
 
 
     # Compute tube
@@ -161,8 +161,8 @@ xd,yd = np.meshgrid(d,d)
 fig, ax = plt.subplots()
 ax.imshow( ((yd<X2_MIN) | (xd < X1_MIN)) , 
                 extent=(xd.min(),xd.max(),yd.min(),yd.max()),origin="lower", cmap="Greys", alpha = 0.4)
-#ax.plot(x_noconstraints[:,0], x_noconstraints[:, 1], linestyle='dashed', marker='o', color='red', linewidth=0.7,label='CE-MPC')
-ax.plot(x[:,0], x[:, 1],  linestyle='dotted', marker='x', color='black', linewidth=0.7,label='CE-MPC')
+ax.plot(x_noconstraints[:,0], x_noconstraints[:, 1], linestyle='dashed', marker='o', color='red', linewidth=0.7,label='No MPC')
+ax.plot(x[:,0], x[:, 1],  linestyle='dotted', marker='x', color='black', linewidth=0.7,label='STT-MPC')
 
 for polygon in polygons:
     collection = PatchCollection([polygon],  facecolor='lightsalmon', edgecolor='black', lw=1, alpha=0.5)

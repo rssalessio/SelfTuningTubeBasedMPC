@@ -3,6 +3,10 @@
 Authors: Damianos Tranos, Alessio Russo, Alexandre Proutiere
 Code author: Alessio Russo
 
+## Usage
+
+In the `known_B` folder, run `mpc_problem.py` to obtain a plot like the one in the paper. The MPC optimization problem is defined in `utils.py`.
+
 ## Requirements
 
 - Python 3.9
