@@ -161,7 +161,7 @@ xd,yd = np.meshgrid(d,d)
 fig, ax = plt.subplots()
 ax.imshow( ((yd<X2_MIN) | (xd < X1_MIN)) , 
                 extent=(xd.min(),xd.max(),yd.min(),yd.max()),origin="lower", cmap="Greys", alpha = 0.4)
-ax.plot(x_noconstraints[:,0], x_noconstraints[:, 1], linestyle='dashed', marker='o', color='red', linewidth=0.7,label='No MPC')
+#ax.plot(x_noconstraints[:,0], x_noconstraints[:, 1], linestyle='dashed', marker='o', color='red', linewidth=0.7,label='No MPC')
 ax.plot(x[:,0], x[:, 1],  linestyle='dotted', marker='x', color='black', linewidth=0.7,label='STT-MPC')
 
 for polygon in polygons:
